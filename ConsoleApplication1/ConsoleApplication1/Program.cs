@@ -9,11 +9,15 @@ namespace ConsoleApplication1
 {
     class Program
     {
+        static int maxSum = 0;
+        static int maxRow = 0;
+        static int finished = 0;
+        static int threadCount = 0;
+        static EventWaitHandle wh = new AutoResetEvent(false);
+
         static void Main(string[] args)
         {
-            int maxSum = 0;
-            int maxRow = 0;
-
+        
             int arrayRows = 10000;
             int arrayColumns = 1000;
 
@@ -39,25 +43,19 @@ namespace ConsoleApplication1
                 Console.WriteLine("Counter {0}, processors {1}", counter, Environment.ProcessorCount);
                 Console.WriteLine("Array range {0} - {1}", startRow, endRow);
 
-                threadList.Add(new Thread(() =>
-                {
-                    for (int i = startRow; i < endRow; i++)
+                threadList.Add(new Thread(
+                    () => 
                     {
-                        var rowSum = 0;
-                        rowSum = GetRow(arr, i).Sum();
-                        if (rowSum > maxSum)
-                        {
-                            maxSum = rowSum;
-                            maxRow = i;
-                        }
-                    }
-                }));
+                        IterateOverArray(arr, startRow, endRow);
+                    }              
+                ));
             }
-
+            threadCount = threadList.Count();
             foreach (var thread in threadList) thread.Start();
-            foreach (var thread in threadList) thread.Join();
-
+            //foreach (var thread in threadList) thread.Join();
+            wh.WaitOne();
             Console.WriteLine("MaxRow - {0}, maxSum - {1}", maxRow, maxSum);
+            Console.WriteLine("Done");
             Console.ReadLine();
         }
 
@@ -84,6 +82,27 @@ namespace ConsoleApplication1
                 yield return arr[row, i];
             }
         }
+
+        public static void IterateOverArray(int[,] arr, int startIndexRow, int endIndexRow)
+        {
+            
+            for (int i = startIndexRow; i < endIndexRow; i++)
+            {
+                var rowSum = 0;
+                rowSum = GetRow(arr, i).Sum();
+                if (rowSum > maxSum)
+                {
+                    
+                    maxSum = rowSum;
+                    maxRow = i;
+                    Console.WriteLine("Changed max {0} - {1}",maxRow,maxSum);
+                }
+            }
+            finished++;
+
+            if (finished == threadCount)
+                wh.Set();
+        } 
 
     }
 }
