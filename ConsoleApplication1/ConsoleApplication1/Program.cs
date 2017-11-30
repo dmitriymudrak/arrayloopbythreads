@@ -9,10 +9,8 @@ namespace ConsoleApplication1
 {
     class Program
     {
-        static int maxSum = 0;
-        static int maxRow = 0;
-        static int finished = 0;
-        static int threadCount = 0;
+        private static object _lock = new object();
+        
         static EventWaitHandle wh = new AutoResetEvent(false);
 
         static void Main(string[] args)
@@ -28,10 +26,11 @@ namespace ConsoleApplication1
             var startRow = 0;
             var endRow = 0;
 
-            var threadList = new List<Thread>();
+            var taskList = new List<Task<KeyValuePair<int, int>>>();
+            var results = new List<KeyValuePair<int, int>>();
 
-            for(var counter = 0; counter < Environment.ProcessorCount; counter++)
-            {    
+            for (var counter = 0; counter < Environment.ProcessorCount; counter++)
+            {
                 startRow = counter * chunkSize;
                 endRow = chunkSize * (counter + 1);
 
@@ -40,23 +39,25 @@ namespace ConsoleApplication1
                     endRow = arr.GetUpperBound(0) + 1;
                 }
 
-                Console.WriteLine("Counter {0}, processors {1}", counter, Environment.ProcessorCount);
-                Console.WriteLine("Array range {0} - {1}", startRow, endRow);
-
-                threadList.Add(new Thread(
-                    () => 
-                    {
-                        IterateOverArray(arr, startRow, endRow);
-                    }              
-                ));
+                var task = TaskIterate(arr, startRow, endRow);
+                lock (_lock)
+                {
+                    results.Add(task.Result);
+                }
+                
             }
-            threadCount = threadList.Count();
-            foreach (var thread in threadList) thread.Start();
-            //foreach (var thread in threadList) thread.Join();
-            wh.WaitOne();
-            Console.WriteLine("MaxRow - {0}, maxSum - {1}", maxRow, maxSum);
+
+            var maxKvp = results.OrderBy(x => x.Value).Last();
+
+
+            Console.WriteLine("Max row {0}, max sum {1}", maxKvp.Key, maxKvp.Value);
+
             Console.WriteLine("Done");
             Console.ReadLine();
+
+
+
+
         }
 
         public static int[,] InitArrayRandomNums(int rows, int cols, int maxRandValue)
@@ -82,27 +83,30 @@ namespace ConsoleApplication1
                 yield return arr[row, i];
             }
         }
-
-        public static void IterateOverArray(int[,] arr, int startIndexRow, int endIndexRow)
+        
+        public static async Task<KeyValuePair<int,int>> TaskIterate(int[,] arr, int startIndexRow, int endIndexRow)
         {
-            
-            for (int i = startIndexRow; i < endIndexRow; i++)
-            {
+            return await Task.Run( () => Iterate(arr, startIndexRow, endIndexRow) );
+        }
+
+        private static KeyValuePair<int,int> Iterate(int[,] arr, int start, int end)
+        {
+            var maxSum = 0;
+            var maxRow = 0;
+            for (int i = start; i < end; i++)
+             {
                 var rowSum = 0;
                 rowSum = GetRow(arr, i).Sum();
                 if (rowSum > maxSum)
                 {
-                    
                     maxSum = rowSum;
                     maxRow = i;
-                    Console.WriteLine("Changed max {0} - {1}",maxRow,maxSum);
+                    
                 }
             }
-            finished++;
+            Console.WriteLine("MaxRow - {0}, maxSum - {1}", maxRow, maxSum);
 
-            if (finished == threadCount)
-                wh.Set();
-        } 
-
+            return new KeyValuePair<int, int>(maxRow, maxSum);
+        }
     }
 }
